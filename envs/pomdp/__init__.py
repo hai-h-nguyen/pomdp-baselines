@@ -251,3 +251,35 @@ register(
     ),  # vel
     max_episode_steps=1000,
 )
+
+
+### Custom environments
+import pdomains
+
+# register(
+#     "Car-Flag-F-v0",
+#     entry_point="envs.pomdp.wrappers:POMDPWrapper",
+#     kwargs=dict(
+#         env=gym.make("pdomains-car-flag-mdp-v0"),
+#         partially_obs_dims=[0, 1, 2],
+#     ),  # fully observable
+#     max_episode_steps=160,
+# )
+
+register(
+    "CarFlag-V-v0",
+    entry_point="pdomains.car_flag_pomdp:CarEnv",
+    max_episode_steps=160,
+)
+
+register(
+    "Two-Boxes-F-v0",
+    entry_point="pdomains.two_boxes_mdp:BoxEnv",
+    max_episode_steps=100,
+)
+
+register(
+    "Two-Boxes-V-v0",
+    entry_point='pdomains.two_boxes:BoxEnv',
+    max_episode_steps=100,
+)

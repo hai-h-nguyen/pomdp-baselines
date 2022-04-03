@@ -10,6 +10,12 @@ class POMDPWrapper(gym.Wrapper):
         # can equal to the fully-observed env
         assert 0 < len(self.partially_obs_dims) <= self.observation_space.shape[0]
 
+        self.state_space = spaces.Box(
+            low=self.observation_space.low,
+            high=self.observation_space.high,
+            dtype=np.float32,
+        )
+
         self.observation_space = spaces.Box(
             low=self.observation_space.low[self.partially_obs_dims],
             high=self.observation_space.high[self.partially_obs_dims],

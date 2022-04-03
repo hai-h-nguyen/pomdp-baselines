@@ -90,6 +90,7 @@ for path in file_paths:
     else:
         # specialized or other methods
         specialized_name = trial_str_list[0]
+        print(specialized_name)
         assert specialized_name in specialized_tags
         result[method_tag] = specialized_name
         for k, v in specialized_tags[specialized_name].items():

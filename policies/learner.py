@@ -208,9 +208,10 @@ class Learner:
             self.act_dim = self.train_env.action_space.n
             self.act_continuous = False
         self.obs_dim = self.train_env.observation_space.shape[0]  # include 1-dim done
-        logger.log("obs_dim", self.obs_dim, "act_dim", self.act_dim)
+        self.state_dim = self.train_env.state_space.shape[0]  # include 1-dim done
+        logger.log("obs_dim", self.obs_dim, "act_dim", self.act_dim, "state_dim", self.state_dim)
 
-    def init_policy(self, arch, separate: bool = True, **kwargs):
+    def init_policy(self, arch, separate: bool = True, expert_dir=None, **kwargs):
         # initialize policy
         if arch == "mlp":
             self.policy_arch = "mlp"
@@ -222,13 +223,15 @@ class Learner:
             else:
                 agent_class = Policy_Shared_RNN
                 logger.log("WARNING: YOU ARE USING SHARED ACTOR-CRITIC ARCH !!!!!!!")
-
         self.agent = agent_class(
             encoder=arch,  # redundant for Policy_MLP
             obs_dim=self.obs_dim,
             action_dim=self.act_dim,
+            state_dim=self.state_dim,
+            expert_dir=expert_dir,
             **kwargs,
         ).to(ptu.device)
+
         logger.log(self.agent)
 
     def init_train(
@@ -952,3 +955,9 @@ class Learner:
             logger.get_dir(), "save", f"agent_{iter}_perf{perf:.3f}.pt"
         )
         torch.save(self.agent.state_dict(), save_path)
+
+        save_actor_path = os.path.join(
+            logger.get_dir(), "save", f"actor_{iter}_perf{perf:.3f}.pt"
+        )
+
+        self.agent.save_actor(save_actor_path)

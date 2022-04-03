@@ -408,6 +408,9 @@ class ModelFreeOffPolicy_Shared_RNN(nn.Module):
 
         return prev_action, reward, internal_state
 
+    def save_actor(self, dir):
+        pass
+
     @torch.no_grad()
     def act(
         self,

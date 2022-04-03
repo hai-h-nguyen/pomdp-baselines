@@ -13,6 +13,34 @@ LOG_SIG_MIN = -20
 PROB_MIN = 1e-8
 
 
+class DimensionConverter(Mlp):
+    """
+    Usage: TD3E SACE
+    ```
+    """
+
+    def __init__(self, input_dim, output_dim, hidden_sizes, init_w=1e-3, **kwargs):
+        self.save_init_params(locals())
+        super().__init__(
+            hidden_sizes,
+            input_size=input_dim,
+            output_size=output_dim,
+            init_w=init_w,
+            **kwargs,
+        )
+
+    def forward(
+        self,
+        input,
+    ):
+        """
+        :param input:
+        return output (*, dim)
+        """
+        output = super().forward(input)
+        return output
+
+
 class DeterministicPolicy(Mlp):
     """
     Usage: TD3

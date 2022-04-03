@@ -2,12 +2,13 @@ import torch
 import torch.nn as nn
 from torch.nn import functional as F
 from utils import helpers as utl
-from torchkit.actor import DeterministicPolicy, TanhGaussianPolicy, CategoricalPolicy
+from torchkit.actor import DeterministicPolicy, DimensionConverter, TanhGaussianPolicy, CategoricalPolicy
 import torchkit.pytorch_utils as ptu
 
 
 class Actor_RNN(nn.Module):
     TD3_name = "td3"
+    TD3E_name = "td3e"
     SAC_name = "sac"
     SACD_name = "sacd"
     LSTM_name = "lstm"
@@ -21,6 +22,7 @@ class Actor_RNN(nn.Module):
         self,
         obs_dim,
         action_dim,
+        state_dim,
         encoder,
         algo,
         action_embedding_size,
@@ -29,15 +31,19 @@ class Actor_RNN(nn.Module):
         rnn_hidden_size,
         policy_layers,
         rnn_num_layers,
+        expert_dir=None,
         **kwargs
     ):
         super().__init__()
 
         self.obs_dim = obs_dim
         self.action_dim = action_dim
+        self.state_dim = state_dim
 
-        assert algo in [self.TD3_name, self.SAC_name, self.SACD_name]
+        assert algo in [self.TD3_name, self.TD3E_name, self.SAC_name, self.SACD_name]
         self.algo = algo
+
+        self.expert_dir = expert_dir
 
         ### Build Model
         ## 1. embed action, state, reward (Feed-forward layers first)
@@ -87,6 +93,27 @@ class Actor_RNN(nn.Module):
                 action_dim=self.action_dim,
                 hidden_sizes=policy_layers,
             )
+        elif self.algo == self.TD3E_name:
+            self.dim_converter = DimensionConverter(
+                input_dim=self.rnn_hidden_size + state_embedding_size,
+                output_dim=self.state_dim,
+                hidden_sizes=policy_layers)
+
+            self.policy = DeterministicPolicy(
+                obs_dim=self.state_dim,
+                action_dim=self.action_dim,
+                hidden_sizes=policy_layers,
+            )
+
+            if self.expert_dir is not None:
+                self.policy.load_state_dict(torch.load(self.expert_dir))
+                print("Load expert policy successfully")
+
+                for param in self.policy.parameters():
+                    param.requires_grad = False
+
+                print("Freeze weights of policy successfully")
+
         elif self.algo == self.SAC_name:
             self.policy = TanhGaussianPolicy(
                 obs_dim=self.rnn_hidden_size + state_embedding_size,
@@ -144,6 +171,10 @@ class Actor_RNN(nn.Module):
         # 4. Actor
         if self.algo == self.TD3_name:
             new_actions = self.policy(joint_embeds)
+            return new_actions, None  # (T+1, B, dim), None
+        elif self.algo == self.TD3E_name:
+            pseudo_state = self.dim_converter(joint_embeds)
+            new_actions = self.policy(pseudo_state)
             return new_actions, None  # (T+1, B, dim), None
         elif self.algo == self.SAC_name:
             new_actions, _, _, log_probs = self.policy(
@@ -214,6 +245,16 @@ class Actor_RNN(nn.Module):
                     -1, 1
                 )  # NOTE
                 action_tuple = (action, mean, None, None)
+        elif self.algo == self.TD3E_name:
+            pseudo_state = self.dim_converter(joint_embeds)
+            mean = self.policy(pseudo_state)
+            if deterministic:
+                action_tuple = (mean, mean, None, None)
+            else:
+                action = (mean + torch.randn_like(mean) * exploration_noise).clamp(
+                    -1, 1
+                )  # NOTE
+                action_tuple = (action, mean, None, None)            
         elif self.algo == self.SAC_name:
             action_tuple = self.policy(
                 joint_embeds, False, deterministic, return_log_prob

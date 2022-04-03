@@ -9,6 +9,7 @@ from torchkit.recurrent_actor import Actor_RNN
 
 class Critic_RNN(nn.Module):
     TD3_name = Actor_RNN.TD3_name
+    TD3E_name = Actor_RNN.TD3E_name
     SAC_name = Actor_RNN.SAC_name
     SACD_name = Actor_RNN.SACD_name
     LSTM_name = Actor_RNN.LSTM_name
@@ -66,7 +67,7 @@ class Critic_RNN(nn.Module):
             elif "weight" in name:
                 nn.init.orthogonal_(param)
 
-        if self.algo in [self.TD3_name, self.SAC_name]:
+        if self.algo in [self.TD3_name, self.TD3E_name, self.SAC_name]:
             extra_input_size = action_dim
             output_size = 1
         else:  # sac-discrete
@@ -128,7 +129,7 @@ class Critic_RNN(nn.Module):
         # 2. another branch for state & **current** action
         if current_actions.shape[0] == observs.shape[0]:
             # current_actions include last obs's action, i.e. we have a'[T] in reaction to o[T]
-            if self.algo in [self.TD3_name, self.SAC_name]:
+            if self.algo in [self.TD3_name, self.TD3E_name, self.SAC_name]:
                 curr_embed = self.current_state_action_encoder(
                     torch.cat((observs, current_actions), dim=-1)
                 )  # (T+1, B, dim)
@@ -140,7 +141,7 @@ class Critic_RNN(nn.Module):
             )  # (T+1, B, dim)
         else:
             # current_actions does NOT include last obs's action
-            if self.algo in [self.TD3_name, self.SAC_name]:
+            if self.algo in [self.TD3_name, self.TD3E_name, self.SAC_name]:
                 curr_embed = self.current_state_action_encoder(
                     torch.cat((observs[:-1], current_actions), dim=-1)
                 )  # (T, B, dim)
