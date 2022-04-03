@@ -283,3 +283,9 @@ register(
     entry_point='pdomains.two_boxes:BoxEnv',
     max_episode_steps=100,
 )
+
+register(
+    "Light-House-1D-v0",
+    entry_point='pdomains.lighthouse_1D:LightHouse1DEnv',
+    max_episode_steps=100,
+)
