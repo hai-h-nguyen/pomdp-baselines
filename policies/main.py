@@ -16,8 +16,7 @@ from policies.learner import Learner
 
 FLAGS = flags.FLAGS
 flags.DEFINE_string("cfg", None, "path to configuration file")
-flags.DEFINE_string("algo", None, '["td3", "td3e", "sac", "sacd"]')
-flags.DEFINE_string("expert_dir", None, "None")
+flags.DEFINE_string("algo", None, '["td3", "sac", "sacd"]')
 
 flags.DEFINE_boolean("automatic_entropy_tuning", None, "for [sac, sacd]")
 flags.DEFINE_float("target_entropy", None, "for [sac, sacd]")
@@ -46,9 +45,6 @@ if FLAGS.entropy_alpha is not None:
 if FLAGS.target_entropy is not None:
     v["policy"]["target_entropy"] = FLAGS.target_entropy
 
-if FLAGS.expert_dir is not "None":
-    v["policy"]["expert_dir"] = FLAGS.expert_dir
-
 if FLAGS.seed is not None:
     v["seed"] = FLAGS.seed
 if FLAGS.cuda is not None:
@@ -75,23 +71,17 @@ set_gpu_mode(torch.cuda.is_available() and v["cuda"] >= 0, v["cuda"])
 exp_id = "logs/"
 # exp_id = 'debug/'
 
-env_type = v["env"]["env_type"]
-if len(v["env"]["env_name"].split("-")) == 3:
-    # pomdp env: name-{F/P/V}-v0
-    env_name, pomdp_type, _ = v["env"]["env_name"].split("-")
-    env_name = env_name + "/" + pomdp_type
-else:
-    env_name = v["env"]["env_name"]
-exp_id += f"{env_type}/{env_name}/"
+env_name = v["env"]["env_name"][:-3]  # remove -v0
+exp_id += f"{env_name}/"
 
-if "oracle" in v["env"] and v["env"]["oracle"] == True:
+if "oracle" in v["env"] and v["env"]["oracle"] is True:
     oracle = True
 else:
     oracle = False
 
 arch, algo = v["policy"]["arch"], v["policy"]["algo"]
 assert arch in ["mlp", "lstm", "gru"]
-assert algo in ["td3", "td3e", "sac", "sacd"]
+assert algo in ["td3", "sac", "sacd"]
 if arch == "mlp":
     if oracle:
         algo_name = f"oracle_{algo}"

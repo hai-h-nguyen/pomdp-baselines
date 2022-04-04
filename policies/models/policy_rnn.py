@@ -33,7 +33,6 @@ class ModelFreeOffPolicy_Separate_RNN(nn.Module):
     """
 
     TD3_name = Actor_RNN.TD3_name
-    TD3E_name = Actor_RNN.TD3E_name
     SAC_name = Actor_RNN.SAC_name
     SACD_name = Actor_RNN.SACD_name
 
@@ -63,7 +62,6 @@ class ModelFreeOffPolicy_Separate_RNN(nn.Module):
         automatic_entropy_tuning=True,
         target_entropy=None,
         alpha_lr=3e-4,
-        expert_dir=None,
         **kwargs
     ):
         super().__init__()
@@ -73,7 +71,7 @@ class ModelFreeOffPolicy_Separate_RNN(nn.Module):
         self.gamma = gamma
         self.tau = tau
 
-        assert algo in [self.TD3_name, self.TD3E_name, self.SAC_name, self.SACD_name]
+        assert algo in [self.TD3_name, self.SAC_name, self.SACD_name]
         self.algo = algo
 
         # Critics
@@ -106,10 +104,9 @@ class ModelFreeOffPolicy_Separate_RNN(nn.Module):
             rnn_hidden_size,
             policy_layers,
             rnn_num_layers,
-            expert_dir=expert_dir
         )
 
-        if self.algo in [self.TD3_name, self.TD3E_name]:
+        if self.algo in [self.TD3_name]:
             # NOTE: td3 has a target policy (actor)
             self.actor_target = deepcopy(self.actor)
             self.exploration_noise = exploration_noise
@@ -170,7 +167,7 @@ class ModelFreeOffPolicy_Separate_RNN(nn.Module):
             deterministic=deterministic,
             return_log_prob=return_log_prob,
             exploration_noise=self.exploration_noise
-            if self.algo in [self.TD3_name, self.TD3E_name]
+            if self.algo in [self.TD3_name]
             else 0.0,
         )
 
@@ -207,7 +204,7 @@ class ModelFreeOffPolicy_Separate_RNN(nn.Module):
         # Q^tar(h(t+1), pi(h(t+1))) + H[pi(h(t+1))]
         with torch.no_grad():
             # first next_actions from target/current policy, (T+1, B, dim) including reaction to last obs
-            if self.algo in [self.TD3_name, self.TD3E_name]:
+            if self.algo in [self.TD3_name]:
                 new_actions, _ = self.actor_target(
                     prev_actions=actions, rewards=rewards, observs=observs
                 )
@@ -229,7 +226,7 @@ class ModelFreeOffPolicy_Separate_RNN(nn.Module):
                 rewards=rewards,
                 observs=observs,
                 current_actions=new_actions
-                if self.algo in [self.TD3_name, self.TD3E_name, self.SAC_name]
+                if self.algo in [self.TD3_name, self.SAC_name]
                 else new_probs,
             )  # (T+1, B, 1 or A)
 
@@ -284,7 +281,7 @@ class ModelFreeOffPolicy_Separate_RNN(nn.Module):
         self.critic_optimizer.step()
 
         ### 2. Actor loss
-        if self.algo in [self.TD3_name, self.TD3E_name]:
+        if self.algo in [self.TD3_name]:
             new_actions, _ = self.actor(
                 prev_actions=actions, rewards=rewards, observs=observs
             )  # (T+1, B, A)
@@ -302,7 +299,7 @@ class ModelFreeOffPolicy_Separate_RNN(nn.Module):
             rewards=rewards,
             observs=observs,
             current_actions=new_actions
-            if self.algo in [self.TD3_name, self.TD3E_name, self.SAC_name]
+            if self.algo in [self.TD3_name, self.SAC_name]
             else new_probs,
         )  # (T+1, B, 1 or A)
         min_q_new_actions = torch.min(q1, q2)  # (T+1,B,1 or A)
@@ -363,7 +360,7 @@ class ModelFreeOffPolicy_Separate_RNN(nn.Module):
 
     def soft_target_update(self):
         ptu.soft_update_from_to(self.critic, self.critic_target, self.tau)
-        if self.algo in [self.TD3_name, self.TD3E_name]:
+        if self.algo in [self.TD3_name]:
             ptu.soft_update_from_to(self.actor, self.actor_target, self.tau)
 
     def report_grad_norm(self):
