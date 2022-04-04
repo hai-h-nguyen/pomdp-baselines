@@ -137,6 +137,9 @@ class ModelFreeOffPolicy_Separate_RNN(nn.Module):
         self.critic_optimizer = Adam(self.critic.parameters(), lr=lr)
         self.actor_optimizer = Adam(self.actor.parameters(), lr=lr)
 
+        if self.algo in [self.SACD_name]:
+            self.actor_aux_optimizer = Adam(self.actor.aux_policy.parameters(), lr=lr)
+
     @torch.no_grad()
     def get_initial_info(self):
         return self.actor.get_initial_info()
@@ -173,7 +176,7 @@ class ModelFreeOffPolicy_Separate_RNN(nn.Module):
 
         return current_action_tuple, current_internal_state
 
-    def forward(self, actions, rewards, observs, dones, masks):
+    def forward(self, actions, exp_actions, rewards, observs, dones, masks):
         """
         For actions a, rewards r, observs o, dones d: (T+1, B, dim)
                 where for each t in [0, T], take action a[t], then receive reward r[t], done d[t], and next obs o[t]
@@ -217,7 +220,7 @@ class ModelFreeOffPolicy_Separate_RNN(nn.Module):
                     prev_actions=actions, rewards=rewards, observs=observs
                 )
             else:
-                new_probs, new_log_probs = self.actor(
+                _, new_probs, new_log_probs = self.actor(
                     prev_actions=actions, rewards=rewards, observs=observs
                 )
 
@@ -280,7 +283,7 @@ class ModelFreeOffPolicy_Separate_RNN(nn.Module):
         (qf1_loss + qf2_loss).backward()
         self.critic_optimizer.step()
 
-        ### 2. Actor loss
+        ### 2. Actor loss and action aux. loss (SACD only for now)
         if self.algo in [self.TD3_name]:
             new_actions, _ = self.actor(
                 prev_actions=actions, rewards=rewards, observs=observs
@@ -290,9 +293,18 @@ class ModelFreeOffPolicy_Separate_RNN(nn.Module):
                 prev_actions=actions, rewards=rewards, observs=observs
             )  # (T+1, B, A)
         else:
-            new_probs, log_probs = self.actor(
+            action_logits, new_probs, log_probs = self.actor(
                 prev_actions=actions, rewards=rewards, observs=observs
             )  # (T+1, B, A)
+
+            input = action_logits[:-1].permute(1, 2, 0)  # (T+1, B, A) -> (T, B, A) -> (B, A, T) 
+            target = exp_actions.permute(1, 2, 0).squeeze(1).long()  # (T, B, 1) -> (B, 1, T) -> (B, T)
+            aux_loss = nn.CrossEntropyLoss(reduction='none')(input, target)  # (B, T)
+            aux_loss = (aux_loss.reshape(masks.shape) * masks).sum() / num_valid
+
+            self.actor_aux_optimizer.zero_grad()
+            aux_loss.backward()
+            self.actor_aux_optimizer.step()
 
         q1, q2 = self.critic(
             prev_actions=actions,
@@ -350,12 +362,17 @@ class ModelFreeOffPolicy_Separate_RNN(nn.Module):
         outputs = {
             "qf1_loss": qf1_loss.item(),
             "qf2_loss": qf2_loss.item(),
-            "policy_loss": policy_loss.item(),
+            "policy_loss": policy_loss.item()
         }
+
         if self.algo in [self.SAC_name, self.SACD_name]:
             outputs.update(
                 {"policy_entropy": -current_log_probs, "alpha": self.alpha_entropy}
             )
+
+        if self.algo in [self.SACD_name]:
+            outputs.update({"aux_policy_loss": aux_loss.item()})
+
         return outputs
 
     def soft_target_update(self):
@@ -397,4 +414,6 @@ class ModelFreeOffPolicy_Separate_RNN(nn.Module):
             (ptu.zeros((1, batch_size, 1)).float(), dones), dim=0
         )  # (T+1, B, dim)
 
-        return self.forward(actions, rewards, observs, dones, masks)
+        exp_actions = batch["exp_act"]
+
+        return self.forward(actions, exp_actions, rewards, observs, dones, masks)

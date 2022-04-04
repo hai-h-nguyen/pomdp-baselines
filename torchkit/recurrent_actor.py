@@ -103,6 +103,12 @@ class Actor_RNN(nn.Module):
                 hidden_sizes=policy_layers,
             )
 
+            self.aux_policy = CategoricalPolicy(
+                obs_dim=self.rnn_hidden_size + state_embedding_size,
+                action_dim=self.action_dim,
+                hidden_sizes=policy_layers,
+            )
+
     def get_hidden_states(
         self, prev_actions, rewards, observs, initial_internal_state=None
     ):
@@ -154,8 +160,14 @@ class Actor_RNN(nn.Module):
             )
             return new_actions, log_probs  # (T+1, B, dim), (T+1, B, 1)
         else:  # sac-d
-            _, probs, log_probs = self.policy(joint_embeds, return_log_prob=True)
-            return probs, log_probs  # (T+1, B, dim), (T+1, B, dim)
+            _, probs, log_probs, _ = self.policy(joint_embeds, return_log_prob=True)
+
+            # Stop gradient flowing back to the main trunk
+            _, _, _, action_logits = self.aux_policy(
+                joint_embeds.detach(), return_log_prob=True
+            )
+
+            return action_logits, probs, log_probs  # (T+1, B, dim), (T+1, B, dim)
 
     @torch.no_grad()
     def get_initial_info(self):
@@ -223,7 +235,7 @@ class Actor_RNN(nn.Module):
             )
         else:
             # sac-discrete
-            action, prob, log_prob = self.policy(
+            action, prob, log_prob, _ = self.policy(
                 joint_embeds, deterministic, return_log_prob
             )
             action_tuple = (action, prob, log_prob, None)

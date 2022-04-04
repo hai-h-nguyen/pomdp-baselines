@@ -37,6 +37,7 @@ class SeqReplayBuffer:
         )
 
         self._actions = np.zeros((max_replay_buffer_size, action_dim), dtype=np.float32)
+        self._exp_actions = np.zeros((max_replay_buffer_size, action_dim), dtype=np.float32)  # expert actions
         self._rewards = np.zeros((max_replay_buffer_size, 1), dtype=np.float32)
 
         # terminals are "done" signals, useful for policy training
@@ -74,7 +75,7 @@ class SeqReplayBuffer:
         self._top = 0  # trajectory level (first dim in 3D buffer)
         self._size = 0  # trajectory level (first dim in 3D buffer)
 
-    def add_episode(self, observations, actions, rewards, terminals, next_observations):
+    def add_episode(self, observations, actions, expert_actions, rewards, terminals, next_observations):
         """
         NOTE: must add one whole episode/sequence/trajectory,
                         not some partial transitions
@@ -99,6 +100,7 @@ class SeqReplayBuffer:
 
         self._observations[indices] = observations
         self._actions[indices] = actions
+        self._exp_actions[indices] = expert_actions
         self._rewards[indices] = rewards
         self._terminals[indices] = terminals
         self._next_observations[indices] = next_observations
@@ -168,6 +170,7 @@ class SeqReplayBuffer:
         return dict(
             obs=self._observations[indices],
             act=self._actions[indices],
+            exp_act=self._exp_actions[indices],
             rew=self._rewards[indices],
             term=self._terminals[indices],
             obs2=self._next_observations[indices],
@@ -242,6 +245,7 @@ if __name__ == "__main__":
     for e in range(10):
         data = np.zeros((10, 2))
         buffer.add_episode(
+            np.zeros((11, 2)),
             np.zeros((11, 2)),
             np.zeros((11, 2)),
             np.zeros((11, 1)),

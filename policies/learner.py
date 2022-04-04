@@ -296,7 +296,8 @@ class Learner:
             if self.policy_arch == "memory":
                 action, reward, internal_state = self.agent.get_initial_info()
                 # temporary storage
-                obs_list, act_list, rew_list, next_obs_list, term_list = (
+                obs_list, act_list, e_act_list, rew_list, next_obs_list, term_list = (
+                    [],
                     [],
                     [],
                     [],
@@ -324,6 +325,12 @@ class Learner:
                             obs=obs,
                             deterministic=False,
                         )
+
+                exp_action = ptu.FloatTensor(utl.env_query_expert(self.train_env))
+                if not self.act_continuous:
+                    exp_action = F.one_hot(
+                        exp_action.long(), num_classes=self.act_dim
+                    ).float()  # (1, A)
 
                 # observe reward and next obs (B=1, dim)
                 next_obs, reward, done, info = utl.env_step(
@@ -359,6 +366,7 @@ class Learner:
                 else:  # append tensors to temporary storage
                     obs_list.append(obs)  # (1, dim)
                     act_list.append(action)  # (1, dim)
+                    e_act_list.append(exp_action)  # (1, dim)
                     rew_list.append(reward)  # (1, dim)
                     term_list.append(term)  # bool
                     next_obs_list.append(next_obs)  # (1, dim)
@@ -368,14 +376,19 @@ class Learner:
 
             if self.policy_arch == "memory":  # add collected sequence to buffer
                 act_buffer = torch.cat(act_list, dim=0)  # (L, dim)
+                e_act_buffer = torch.cat(e_act_list, dim=0)  # (L, dim)
                 if not self.act_continuous:
                     act_buffer = torch.argmax(
                         act_buffer, dim=-1, keepdims=True
+                    )  # (L, 1)
+                    e_act_buffer = torch.argmax(
+                        e_act_buffer, dim=-1, keepdims=True
                     )  # (L, 1)
 
                 self.policy_storage.add_episode(
                     observations=ptu.get_numpy(torch.cat(obs_list, dim=0)),  # (L, dim)
                     actions=ptu.get_numpy(act_buffer),  # (L, dim)
+                    expert_actions=ptu.get_numpy(e_act_buffer),  # (L, dim)
                     rewards=ptu.get_numpy(torch.cat(rew_list, dim=0)),  # (L, dim)
                     terminals=np.array(term_list).reshape(-1, 1),  # (L, 1)
                     next_observations=ptu.get_numpy(
