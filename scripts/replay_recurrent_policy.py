@@ -33,7 +33,6 @@ agent = Policy_RNN(
             algo=args.algo,
             action_embedding_size=8,
             state_embedding_size=32,
-            reward_embedding_size=8,
             rnn_hidden_size=128,
             dqn_layers=[128, 128],
             policy_layers=[128, 128],
@@ -75,14 +74,13 @@ def collect_rollouts(
         done_rollout = False
 
         # get hidden state at timestep=0, None for mlp
-        action, reward, internal_state = agent.get_initial_info()
+        action, internal_state = agent.get_initial_info()
 
         while not done_rollout:
             # policy takes hidden state as input for rnn, while takes obs for mlp
             (action, _, _, _), internal_state = agent.act(
                 prev_internal_state=internal_state,
                 prev_action=action,
-                reward=reward,
                 obs=obs,
                 deterministic=deterministic,
             )

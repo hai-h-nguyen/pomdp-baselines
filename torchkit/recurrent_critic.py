@@ -23,7 +23,6 @@ class Critic_RNN(nn.Module):
         algo,
         action_embedding_size,
         state_embedding_size,
-        reward_embedding_size,
         rnn_hidden_size,
         dqn_layers,
         rnn_num_layers,
@@ -36,16 +35,15 @@ class Critic_RNN(nn.Module):
         self.algo = algo
 
         ### Build Model
-        ## 1. embed action, state, reward (Feed-forward layers first)
+        ## 1. embed action, state (Feed-forward layers first)
         self.state_encoder = utl.FeatureExtractor(obs_dim, state_embedding_size, F.relu)
         self.action_encoder = utl.FeatureExtractor(
             action_dim, action_embedding_size, F.relu
         )
-        self.reward_encoder = utl.FeatureExtractor(1, reward_embedding_size, F.relu)
 
         ## 2. build RNN model
         rnn_input_size = (
-            action_embedding_size + state_embedding_size + reward_embedding_size
+            action_embedding_size + state_embedding_size
         )
         self.rnn_hidden_size = rnn_hidden_size
 
@@ -90,21 +88,20 @@ class Critic_RNN(nn.Module):
             hidden_sizes=dqn_layers,
         )
 
-    def get_hidden_states(self, prev_actions, rewards, observs):
+    def get_hidden_states(self, prev_actions, observs):
         # all the input have the shape of (T+1, B, *)
         # get embedding of initial transition
         input_a = self.action_encoder(prev_actions)
-        input_r = self.reward_encoder(rewards)
         input_s = self.state_encoder(observs)
-        inputs = torch.cat((input_a, input_r, input_s), dim=-1)
+        inputs = torch.cat((input_a, input_s), dim=-1)
 
         # feed into RNN: output (T+1, B, hidden_size)
         output, _ = self.rnn(inputs)  # initial hidden state is zeros
         return output
 
-    def forward(self, prev_actions, rewards, observs, current_actions):
+    def forward(self, prev_actions, observs, current_actions):
         """
-        For prev_actions a, rewards r, observs o: (T+1, B, dim)
+        For prev_actions a, observs o: (T+1, B, dim)
                 a[t] -> r[t], o[t]
         current_actions (or action probs for discrete actions) a': (T or T+1, B, dim)
                 o[t] -> a'[t]
@@ -112,17 +109,16 @@ class Critic_RNN(nn.Module):
         """
         assert (
             prev_actions.dim()
-            == rewards.dim()
             == observs.dim()
             == current_actions.dim()
             == 3
         )
-        assert prev_actions.shape[0] == rewards.shape[0] == observs.shape[0]
+        assert prev_actions.shape[0] == observs.shape[0]
 
         ### 1. get hidden/belief states of the whole/sub trajectories, aligned with observs
         # return the hidden states (T+1, B, dim)
         hidden_states = self.get_hidden_states(
-            prev_actions=prev_actions, rewards=rewards, observs=observs
+            prev_actions=prev_actions, observs=observs
         )
 
         # 2. another branch for state & **current** action

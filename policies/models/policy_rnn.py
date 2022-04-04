@@ -27,8 +27,7 @@ class ModelFreeOffPolicy_Separate_RNN(nn.Module):
             by avoiding rnn gradient explosion
             and q loss explosion
     the input trajectory include obs,
-            and/or action (action_embedding_size != 0),
-            and/or reward (reward_embedding_size != 0).
+            and/or action (action_embedding_size != 0).
     depends on the task where partially observation is
     """
 
@@ -45,7 +44,6 @@ class ModelFreeOffPolicy_Separate_RNN(nn.Module):
         algo,
         action_embedding_size,
         state_embedding_size,
-        reward_embedding_size,
         rnn_hidden_size,
         dqn_layers,
         policy_layers,
@@ -82,7 +80,6 @@ class ModelFreeOffPolicy_Separate_RNN(nn.Module):
             algo,
             action_embedding_size,
             state_embedding_size,
-            reward_embedding_size,
             rnn_hidden_size,
             dqn_layers,
             rnn_num_layers,
@@ -100,7 +97,6 @@ class ModelFreeOffPolicy_Separate_RNN(nn.Module):
             algo,
             action_embedding_size,
             state_embedding_size,
-            reward_embedding_size,
             rnn_hidden_size,
             policy_layers,
             rnn_num_layers,
@@ -153,19 +149,16 @@ class ModelFreeOffPolicy_Separate_RNN(nn.Module):
         self,
         prev_internal_state,
         prev_action,
-        reward,
         obs,
         deterministic=False,
         return_log_prob=False,
     ):
         prev_action = prev_action.unsqueeze(0)  # (1, B, dim)
-        reward = reward.unsqueeze(0)  # (1, B, 1)
         obs = obs.unsqueeze(0)  # (1, B, 1)
 
         current_action_tuple, current_internal_state = self.actor.act(
             prev_internal_state=prev_internal_state,
             prev_action=prev_action,
-            reward=reward,
             obs=obs,
             deterministic=deterministic,
             return_log_prob=return_log_prob,
@@ -209,7 +202,7 @@ class ModelFreeOffPolicy_Separate_RNN(nn.Module):
             # first next_actions from target/current policy, (T+1, B, dim) including reaction to last obs
             if self.algo in [self.TD3_name]:
                 new_actions, _ = self.actor_target(
-                    prev_actions=actions, rewards=rewards, observs=observs
+                    prev_actions=actions, observs=observs
                 )
                 action_noise = (
                     torch.randn_like(new_actions) * self.target_noise
@@ -217,16 +210,15 @@ class ModelFreeOffPolicy_Separate_RNN(nn.Module):
                 new_actions = (new_actions + action_noise).clamp(-1, 1)  # NOTE
             elif self.algo == self.SAC_name:
                 new_actions, new_log_probs = self.actor(
-                    prev_actions=actions, rewards=rewards, observs=observs
+                    prev_actions=actions, observs=observs
                 )
             else:
                 _, new_probs, new_log_probs = self.actor(
-                    prev_actions=actions, rewards=rewards, observs=observs
+                    prev_actions=actions, observs=observs
                 )
 
             next_q1, next_q2 = self.critic_target(
                 prev_actions=actions,
-                rewards=rewards,
                 observs=observs,
                 current_actions=new_actions
                 if self.algo in [self.TD3_name, self.SAC_name]
@@ -254,7 +246,6 @@ class ModelFreeOffPolicy_Separate_RNN(nn.Module):
         # Q(h(t), a(t)) (T, B, 1)
         q1_pred, q2_pred = self.critic(
             prev_actions=actions,
-            rewards=rewards,
             observs=observs,
             current_actions=actions[1:],
         )  # (T, B, 1 or A)
@@ -286,15 +277,15 @@ class ModelFreeOffPolicy_Separate_RNN(nn.Module):
         ### 2. Actor loss and action aux. loss (SACD only for now)
         if self.algo in [self.TD3_name]:
             new_actions, _ = self.actor(
-                prev_actions=actions, rewards=rewards, observs=observs
+                prev_actions=actions, observs=observs
             )  # (T+1, B, A)
         elif self.algo == self.SAC_name:
             new_actions, log_probs = self.actor(
-                prev_actions=actions, rewards=rewards, observs=observs
+                prev_actions=actions, observs=observs
             )  # (T+1, B, A)
         else:
             action_logits, new_probs, log_probs = self.actor(
-                prev_actions=actions, rewards=rewards, observs=observs
+                prev_actions=actions, observs=observs
             )  # (T+1, B, A)
 
             input = action_logits[:-1].permute(1, 2, 0)  # (T+1, B, A) -> (T, B, A) -> (B, A, T) 
@@ -308,7 +299,6 @@ class ModelFreeOffPolicy_Separate_RNN(nn.Module):
 
         q1, q2 = self.critic(
             prev_actions=actions,
-            rewards=rewards,
             observs=observs,
             current_actions=new_actions
             if self.algo in [self.TD3_name, self.SAC_name]

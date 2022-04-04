@@ -32,7 +32,6 @@ policy:
 
   action_embedding_size: 8 # no action input
   state_embedding_size: 32
-  reward_embedding_size: 8
   rnn_hidden_size: 128
 
   dqn_layers: [128, 128]

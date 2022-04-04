@@ -294,7 +294,7 @@ class Learner:
 
             # get hidden state at timestep=0, None for mlp
             if self.policy_arch == "memory":
-                action, reward, internal_state = self.agent.get_initial_info()
+                action, internal_state = self.agent.get_initial_info()
                 # temporary storage
                 obs_list, act_list, e_act_list, rew_list, next_obs_list, term_list = (
                     [],
@@ -321,7 +321,6 @@ class Learner:
                         (action, _, _, _), internal_state = self.agent.act(
                             prev_internal_state=internal_state,
                             prev_action=action,
-                            reward=reward,
                             obs=obs,
                             deterministic=False,
                         )
@@ -449,7 +448,7 @@ class Learner:
             obs = obs.reshape(1, obs.shape[-1])
 
             if self.policy_arch == "memory":
-                action, reward, internal_state = self.agent.get_initial_info()
+                action, internal_state = self.agent.get_initial_info()
 
             for episode_idx in range(num_episodes):
                 running_reward = 0.0
@@ -462,7 +461,6 @@ class Learner:
                         (action, _, _, _), internal_state = self.agent.act(
                             prev_internal_state=internal_state,
                             prev_action=action,
-                            reward=reward,
                             obs=obs,
                             deterministic=deterministic,
                         )

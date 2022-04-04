@@ -118,8 +118,6 @@ if arch in ["lstm", "gru"]:
     policy_input_str = "o"
     if v["policy"]["action_embedding_size"] > 0:
         policy_input_str += "a"
-    if v["policy"]["reward_embedding_size"] > 0:
-        policy_input_str += "r"
     exp_id += policy_input_str + "/"
 
 os.makedirs(exp_id, exist_ok=True)

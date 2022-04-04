@@ -18,8 +18,7 @@ class ModelFreeOffPolicy_Shared_RNN(nn.Module):
     """
     RNN TD3/SAC (Recurrent Policy) with shared RNN
     the input trajectory include obs,
-            and/or action (action_embedding_size != 0),
-            and/or reward (reward_embedding_size != 0).
+            and/or action (action_embedding_size != 0).
     depends on the task where partially observation is
     """
 
@@ -37,7 +36,6 @@ class ModelFreeOffPolicy_Shared_RNN(nn.Module):
         algo,
         action_embedding_size,
         state_embedding_size,
-        reward_embedding_size,
         rnn_hidden_size,
         dqn_layers,
         policy_layers,
@@ -71,11 +69,10 @@ class ModelFreeOffPolicy_Shared_RNN(nn.Module):
         self.action_encoder = utl.FeatureExtractor(
             action_dim, action_embedding_size, F.relu
         )
-        self.reward_encoder = utl.FeatureExtractor(1, reward_embedding_size, F.relu)
 
         ## 2. build RNN model
         rnn_input_size = (
-            action_embedding_size + state_embedding_size + reward_embedding_size
+            action_embedding_size + state_embedding_size
         )
         self.rnn_hidden_size = rnn_hidden_size
 
@@ -142,7 +139,6 @@ class ModelFreeOffPolicy_Shared_RNN(nn.Module):
             [
                 *self.state_encoder.parameters(),
                 *self.action_encoder.parameters(),
-                *self.reward_encoder.parameters(),
                 *self.rnn.parameters(),
                 *self.current_state_action_encoder.parameters(),
                 *self.current_state_encoder.parameters(),
@@ -179,14 +175,13 @@ class ModelFreeOffPolicy_Shared_RNN(nn.Module):
         # logger.log(self)
 
     def get_hidden_states(
-        self, prev_actions, rewards, observs, initial_internal_state=None
+        self, prev_actions, observs, initial_internal_state=None
     ):
         # all the input have the shape of (T+1, B, *)
         # get embedding of initial transition
         input_a = self.action_encoder(prev_actions)
-        input_r = self.reward_encoder(rewards)
         input_s = self.state_encoder(observs)
-        inputs = torch.cat((input_a, input_r, input_s), dim=-1)
+        inputs = torch.cat((input_a, input_s), dim=-1)
 
         # feed into RNN: output (T+1, B, hidden_size)
         if initial_internal_state is None:  # initial_internal_state is zeros
@@ -226,7 +221,7 @@ class ModelFreeOffPolicy_Shared_RNN(nn.Module):
         ### 1. get hidden/belief states of the whole/sub trajectories, aligned with observs
         # return the hidden states (T+1, B, dim)
         hidden_states = self.get_hidden_states(
-            prev_actions=actions, rewards=rewards, observs=observs
+            prev_actions=actions, observs=observs
         )
 
         obs_embeds = self.current_state_encoder(observs)  # (T+1, B, dim)
@@ -397,7 +392,6 @@ class ModelFreeOffPolicy_Shared_RNN(nn.Module):
 
         ## here we set the ndim = 2 for action and reward for compatibility
         prev_action = ptu.zeros((1, self.action_dim)).float()
-        reward = ptu.zeros((1, 1)).float()
 
         hidden_state = ptu.zeros((self.num_layers, 1, self.rnn_hidden_size)).float()
         if self.encoder == self.GRU_name:
@@ -406,14 +400,13 @@ class ModelFreeOffPolicy_Shared_RNN(nn.Module):
             cell_state = ptu.zeros((self.num_layers, 1, self.rnn_hidden_size)).float()
             internal_state = (hidden_state, cell_state)
 
-        return prev_action, reward, internal_state
+        return prev_action, internal_state
 
     @torch.no_grad()
     def act(
         self,
         prev_internal_state,
         prev_action,
-        reward,
         obs,
         deterministic=False,
         return_log_prob=False,
@@ -421,7 +414,6 @@ class ModelFreeOffPolicy_Shared_RNN(nn.Module):
         # for evaluation (not training), so no target actor, and T = 1
         # a function that generates action, works like a pytorch module
         prev_action = prev_action.unsqueeze(0)  # (1, B, dim)
-        reward = reward.unsqueeze(0)  # (1, B, 1)
         obs = obs.unsqueeze(0)  # (1, B, 1)
 
         # 1. get hidden state and current internal state
@@ -431,7 +423,6 @@ class ModelFreeOffPolicy_Shared_RNN(nn.Module):
         # current_internal_state: (1, B, dim) or ((1, B, dim), (1, B, dim))
         hidden_state, current_internal_state = self.get_hidden_states(
             prev_actions=prev_action,
-            rewards=reward,
             observs=obs,
             initial_internal_state=prev_internal_state,
         )
