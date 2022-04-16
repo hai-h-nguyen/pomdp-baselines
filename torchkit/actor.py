@@ -199,4 +199,4 @@ class CategoricalPolicy(Mlp):
         # convert to one-hot vectors
         action = F.one_hot(action.long(), num_classes=self.action_dim).float()  # (*, A)
 
-        return action, prob, log_prob, action_logits
+        return action, prob, log_prob

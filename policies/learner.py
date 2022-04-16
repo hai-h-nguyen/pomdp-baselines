@@ -50,7 +50,6 @@ class Learner:
         env_type,
         env_name,
         max_rollouts_per_task=None,
-        num_tasks=None,
         num_train_tasks=None,
         num_eval_tasks=None,
         report_eval_tasks=None,
@@ -162,6 +161,7 @@ class Learner:
             self.policy_storage = buffer_class(
                 max_replay_buffer_size=int(buffer_size),
                 observation_dim=self.obs_dim,
+                state_dim=self.state_dim,
                 action_dim=self.act_dim if self.act_continuous else 1,  # save memory
                 sampled_seq_len=sampled_seq_len,
                 sample_weight_baseline=sample_weight_baseline,
@@ -283,11 +283,9 @@ class Learner:
         for idx in range(num_rollouts):
             steps = 0
 
-            if self.env_type == "meta" and self.train_env.n_tasks is not None:
-                task = self.train_tasks[np.random.randint(len(self.train_tasks))]
-                obs = ptu.from_numpy(self.train_env.reset(task=task))  # reset task
-            else:
-                obs = ptu.from_numpy(self.train_env.reset())  # reset
+            obs = ptu.from_numpy(self.train_env.reset())  # reset
+            state = ptu.from_numpy(utl.env_query_state(self.train_env))
+            state = state.reshape(1, state.shape[-1])
 
             obs = obs.reshape(1, obs.shape[-1])
             done_rollout = False
@@ -296,7 +294,8 @@ class Learner:
             if self.policy_arch == "memory":
                 action, internal_state = self.agent.get_initial_info()
                 # temporary storage
-                obs_list, act_list, e_act_list, rew_list, next_obs_list, term_list = (
+                obs_list, act_list, e_act_list, rew_list, next_obs_list, term_list, state_list = (
+                    [],
                     [],
                     [],
                     [],
@@ -335,6 +334,8 @@ class Learner:
                 next_obs, reward, done, info = utl.env_step(
                     self.train_env, action.squeeze(dim=0)
                 )
+                next_state = ptu.from_numpy(utl.env_query_state(self.train_env))
+                next_state = next_state.reshape(1, next_state.shape[-1])
                 done_rollout = False if ptu.get_numpy(done[0][0]) == 0.0 else True
                 # update statistics
                 steps += 1
@@ -369,9 +370,13 @@ class Learner:
                     rew_list.append(reward)  # (1, dim)
                     term_list.append(term)  # bool
                     next_obs_list.append(next_obs)  # (1, dim)
+                    state_list.append(state)  # (1, dim)
 
                 # set: obs <- next_obs
                 obs = next_obs.clone()
+
+                # set: state <- next_state
+                state = next_state.clone()
 
             if self.policy_arch == "memory":  # add collected sequence to buffer
                 act_buffer = torch.cat(act_list, dim=0)  # (L, dim)
@@ -386,6 +391,7 @@ class Learner:
 
                 self.policy_storage.add_episode(
                     observations=ptu.get_numpy(torch.cat(obs_list, dim=0)),  # (L, dim)
+                    states=ptu.get_numpy(torch.cat(state_list, dim=0)),  # (L, dim)
                     actions=ptu.get_numpy(act_buffer),  # (L, dim)
                     expert_actions=ptu.get_numpy(e_act_buffer),  # (L, dim)
                     rewards=ptu.get_numpy(torch.cat(rew_list, dim=0)),  # (L, dim)
@@ -477,6 +483,8 @@ class Learner:
                     obs = next_obs.clone()
 
                     if done_rollout:
+                        if "success" in info.keys():
+                            success_rate[task_idx] = info["success"]
                         # for all env types, same
                         break
 
@@ -521,6 +529,9 @@ class Learner:
             logger.record_tabular(
                 "metrics/return_eval_total", np.mean(np.sum(returns_eval, axis=-1))
             )
+            logger.record_tabular(
+                "metrics/sr_eval_total", np.mean(success_rate_eval)
+            )
             if self.eval_stochastic:
                 logger.record_tabular(
                     "metrics/total_steps_eval_sto", np.mean(total_steps_eval_sto)
@@ -529,7 +540,9 @@ class Learner:
                     "metrics/return_eval_total_sto",
                     np.mean(np.sum(returns_eval_sto, axis=-1)),
                 )
-
+                logger.record_tabular(
+                    "metrics/sr_eval_total_sto", np.mean(success_rate_eval_sto)
+                )
         else:
             raise ValueError
 
@@ -551,9 +564,3 @@ class Learner:
             logger.get_dir(), "save", f"agent_{iter}_perf{perf:.3f}.pt"
         )
         torch.save(self.agent.state_dict(), save_path)
-
-        save_actor_path = os.path.join(
-            logger.get_dir(), "save", f"actor_{iter}_perf{perf:.3f}.pt"
-        )
-
-        self.agent.save_actor(save_actor_path)

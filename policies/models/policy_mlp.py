@@ -124,10 +124,6 @@ class ModelFreeOffPolicy_MLP(nn.Module):
 
         self.policy_optim = Adam(self.policy.parameters(), lr=lr)
 
-    @torch.no_grad()
-    def save_actor(self, dir):
-        torch.save(self.policy.state_dict(), dir)
-
     def act(
         self, obs, deterministic=False, return_log_prob=False, use_target_policy=False
     ):

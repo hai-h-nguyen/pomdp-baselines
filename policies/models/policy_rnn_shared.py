@@ -367,7 +367,7 @@ class ModelFreeOffPolicy_Shared_RNN(nn.Module):
 
     def update(self, batch):
         # all are 3D tensor (T,B,dim)
-        actions, rewards, dones = batch["act"], batch["rew"], batch["term"]
+        actions, rewards, dones, states = batch["act"], batch["rew"], batch["term"]
         _, batch_size, _ = actions.shape
         masks = batch["mask"]
         obs, next_obs = batch["obs"], batch["obs2"]  # (T, B, dim)
@@ -384,7 +384,7 @@ class ModelFreeOffPolicy_Shared_RNN(nn.Module):
             (ptu.zeros((1, batch_size, 1)).float(), dones), dim=0
         )  # (T+1, B, dim)
 
-        return self.forward(actions, rewards, observs, dones, masks)
+        return self.forward(actions, rewards, observs, dones, masks, states)
 
     @torch.no_grad()
     def get_initial_info(self):

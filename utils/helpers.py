@@ -45,6 +45,10 @@ def env_query_expert(env):
     return env.query_expert()
 
 
+def env_query_state(env):
+    return env.query_state()
+
+
 def env_step(env, action, rendering=False):
     # action: (A)
     # return: all 2D tensor shape (B=1, dim)

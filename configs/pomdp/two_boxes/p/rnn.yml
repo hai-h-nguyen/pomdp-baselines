@@ -2,13 +2,13 @@ seed: 73
 cuda: 0 # use_gpu
 env:
   env_type: pomdp
-  env_name: Two-Boxes-V-v0
+  env_name: Two-Boxes-v0
 
   num_eval_tasks: 20 # num of eval episodes
 
 train:
   # 250*200 = 50k steps
-  num_iters: 250 # number meta-training iterates
+  num_iters: 500 # number meta-training iterates
   num_init_rollouts_pool: 5 # before training
   num_rollouts_per_iter: 1
 
@@ -28,7 +28,7 @@ eval:
 policy:
   separate: True
   arch: lstm # [lstm, gru]
-  algo: sac # [td3, sac]
+  algo: sacd # [td3, sac]
 
   action_embedding_size: 8 # no action input
   state_embedding_size: 32

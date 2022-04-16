@@ -81,7 +81,7 @@ else:
 
 arch, algo = v["policy"]["arch"], v["policy"]["algo"]
 assert arch in ["mlp", "lstm", "gru"]
-assert algo in ["td3", "sac", "sacd"]
+assert algo in ["td3", "sac", "sacd", "sacde", "sacda"]
 if arch == "mlp":
     if oracle:
         algo_name = f"oracle_{algo}"

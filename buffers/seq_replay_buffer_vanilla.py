@@ -8,6 +8,7 @@ class SeqReplayBuffer:
         self,
         max_replay_buffer_size,
         observation_dim,
+        state_dim,
         action_dim,
         sampled_seq_len: int,
         sample_weight_baseline: float,
@@ -27,10 +28,14 @@ class SeqReplayBuffer:
         """
         self._max_replay_buffer_size = max_replay_buffer_size
         self._observation_dim = observation_dim
+        self._state_dim = state_dim
         self._action_dim = action_dim
 
         self._observations = np.zeros(
             (max_replay_buffer_size, observation_dim), dtype=np.float32
+        )
+        self._states = np.zeros(
+            (max_replay_buffer_size, state_dim), dtype=np.float32
         )
         self._next_observations = np.zeros(
             (max_replay_buffer_size, observation_dim), dtype=np.float32
@@ -75,7 +80,7 @@ class SeqReplayBuffer:
         self._top = 0  # trajectory level (first dim in 3D buffer)
         self._size = 0  # trajectory level (first dim in 3D buffer)
 
-    def add_episode(self, observations, actions, expert_actions, rewards, terminals, next_observations):
+    def add_episode(self, observations, states, actions, expert_actions, rewards, terminals, next_observations):
         """
         NOTE: must add one whole episode/sequence/trajectory,
                         not some partial transitions
@@ -99,6 +104,7 @@ class SeqReplayBuffer:
         )
 
         self._observations[indices] = observations
+        self._states[indices] = states
         self._actions[indices] = actions
         self._exp_actions[indices] = expert_actions
         self._rewards[indices] = rewards
@@ -169,6 +175,7 @@ class SeqReplayBuffer:
     def _sample_data(self, indices):
         return dict(
             obs=self._observations[indices],
+            state=self._states[indices],
             act=self._actions[indices],
             exp_act=self._exp_actions[indices],
             rew=self._rewards[indices],

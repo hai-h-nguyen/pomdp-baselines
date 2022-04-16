@@ -39,7 +39,7 @@ agent = Policy_RNN(
             lr=0.0003,
             gamma=0.9,
             tau=0.005,
-            target_entropy=0.5  # This is not important during evaluation
+            target_entropy=0.7  # This is not important during evaluation
         ).to(ptu.device)
 
 agent_dir = args.agent_dir

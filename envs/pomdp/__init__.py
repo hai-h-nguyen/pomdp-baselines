@@ -267,8 +267,8 @@ import pdomains
 # )
 
 register(
-    "CarFlag-V-v0",
-    entry_point="pdomains.car_flag_pomdp:CarEnv",
+    "CarFlag-v0",
+    entry_point="pdomains.car_flag_discrete:CarEnv",
     max_episode_steps=160,
 )
 
@@ -279,13 +279,19 @@ register(
 )
 
 register(
-    "Two-Boxes-V-v0",
-    entry_point='pdomains.two_boxes:BoxEnv',
+    "Two-Boxes-v0",
+    entry_point='pdomains.two_boxes_discrete:BoxEnv',
     max_episode_steps=100,
 )
 
 register(
     "Light-House-1D-v0",
     entry_point='pdomains.lighthouse_1D:LightHouse1DEnv',
+    max_episode_steps=100,
+)
+
+register(
+    "Light-House-v0",
+    entry_point='pdomains.lighthouse:LightHouseEnv',
     max_episode_steps=100,
 )
