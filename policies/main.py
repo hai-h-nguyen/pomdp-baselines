@@ -16,7 +16,8 @@ from policies.learner import Learner
 
 FLAGS = flags.FLAGS
 flags.DEFINE_string("cfg", None, "path to configuration file")
-flags.DEFINE_string("algo", None, '["td3", "sac", "sacd"]')
+flags.DEFINE_string("algo", None, '["td3", "sac", "sacd", "sacde"]')
+flags.DEFINE_string("env", None, 'environment to run')
 
 flags.DEFINE_boolean("automatic_entropy_tuning", None, "for [sac, sacd]")
 flags.DEFINE_float("target_entropy", None, "for [sac, sacd]")
@@ -37,6 +38,9 @@ v = yaml.load(open(FLAGS.cfg))
 # overwrite config params
 if FLAGS.algo is not None:
     v["policy"]["algo"] = FLAGS.algo
+
+if FLAGS.env is not None:
+    v["env"]["env_name"] = FLAGS.env
 
 if FLAGS.automatic_entropy_tuning is not None:
     v["policy"]["automatic_entropy_tuning"] = FLAGS.automatic_entropy_tuning
@@ -71,7 +75,7 @@ set_gpu_mode(torch.cuda.is_available() and v["cuda"] >= 0, v["cuda"])
 exp_id = "logs/"
 # exp_id = 'debug/'
 
-env_name = v["env"]["env_name"][:-3]  # remove -v0
+env_name = v["env"]["env_name"]
 exp_id += f"{env_name}/"
 
 if "oracle" in v["env"] and v["env"]["oracle"] is True:
@@ -81,7 +85,7 @@ else:
 
 arch, algo = v["policy"]["arch"], v["policy"]["algo"]
 assert arch in ["mlp", "lstm", "gru"]
-assert algo in ["td3", "sac", "sacd", "sacde", "sacda"]
+assert algo in ["td3", "sac", "sacd", "sacde"]
 if arch == "mlp":
     if oracle:
         algo_name = f"oracle_{algo}"
@@ -104,7 +108,7 @@ else:  # rnn
         exp_id += "_shared"
 exp_id += "/"
 
-if algo in ["sac", "sacd"]:
+if algo in ["sac", "sacd", "sacde"]:
     if not v["policy"]["automatic_entropy_tuning"]:
         exp_id += f"alpha-{v['policy']['entropy_alpha']}/"
     elif "target_entropy" in v["policy"]:
@@ -119,6 +123,8 @@ if arch in ["lstm", "gru"]:
     if v["policy"]["action_embedding_size"] > 0:
         policy_input_str += "a"
     exp_id += policy_input_str + "/"
+
+exp_id += 'seed-' + str(seed) + "/"
 
 os.makedirs(exp_id, exist_ok=True)
 log_folder = os.path.join(exp_id, system.now_str())

@@ -267,8 +267,14 @@ import pdomains
 # )
 
 register(
-    "CarFlag-v0",
+    "Car-Flag-v0",
     entry_point="pdomains.car_flag_discrete:CarEnv",
+    max_episode_steps=160,
+)
+
+register(
+    "Car-Flag-v1",
+    entry_point="pdomains.car_flag_discrete_extra:CarEnv",
     max_episode_steps=160,
 )
 
@@ -285,13 +291,15 @@ register(
 )
 
 register(
-    "Light-House-1D-v0",
-    entry_point='pdomains.lighthouse_1D:LightHouse1DEnv',
-    max_episode_steps=100,
-)
-
-register(
     "Light-House-v0",
     entry_point='pdomains.lighthouse:LightHouseEnv',
     max_episode_steps=100,
+    kwargs={"world_dim": 1},
+)
+
+register(
+    "Light-House-v1",
+    entry_point='pdomains.lighthouse:LightHouseEnv',
+    max_episode_steps=100,
+    kwargs={"world_dim": 2},
 )

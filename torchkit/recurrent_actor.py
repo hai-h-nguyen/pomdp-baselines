@@ -12,7 +12,6 @@ class Actor_RNN(nn.Module):
     SAC_name = "sac"
     SACD_name = "sacd"
     SACDE_name = "sacde"
-    SACDA_name = "sacda"  # Advisor off-policy
     LSTM_name = "lstm"
     GRU_name = "gru"
     RNNs = {
@@ -40,7 +39,7 @@ class Actor_RNN(nn.Module):
         self.action_dim = action_dim
         self.state_dim = state_dim
 
-        assert algo in [self.TD3_name, self.SAC_name, self.SACD_name, self.SACDE_name, self.SACDA_name]
+        assert algo in [self.TD3_name, self.SAC_name, self.SACD_name, self.SACDE_name]
         self.algo = algo
 
         ### Build Model
@@ -104,21 +103,6 @@ class Actor_RNN(nn.Module):
                 hidden_sizes=policy_layers,
             )
 
-            if self.algo == self.SACDE_name:
-                self.state_predictor = Mlp(
-                    input_size=self.rnn_hidden_size + state_embedding_size,
-                    output_size=state_dim,
-                    hidden_sizes=policy_layers,
-                    output_activation=torch.sigmoid
-                )
-            
-            if self.algo == self.SACDA_name:
-                self.aux_policy = CategoricalPolicy(
-                    obs_dim=self.rnn_hidden_size + state_embedding_size,
-                    action_dim=self.action_dim,
-                    hidden_sizes=policy_layers,
-                )
-
     def get_hidden_states(
         self, prev_actions, observs, initial_internal_state=None
     ):
@@ -171,17 +155,7 @@ class Actor_RNN(nn.Module):
         else:  # sac-d
             _, probs, log_probs = self.policy(joint_embeds, return_log_prob=True)
 
-            # sacde
-            if self.algo == self.SACDE_name:
-                # State prediction
-                aux_output = self.state_predictor(joint_embeds.detach())
-            elif self.algo == self.SACDA_name:
-                # Aux action distribution
-                _, aux_output, _ = self.aux_policy(joint_embeds)
-            else:
-                aux_output = None
-
-            return aux_output, probs, log_probs  # (T+1, B, dim), (T+1, B, dim)
+            return probs, log_probs  # (T+1, B, dim), (T+1, B, dim)
 
     @torch.no_grad()
     def get_initial_info(self):

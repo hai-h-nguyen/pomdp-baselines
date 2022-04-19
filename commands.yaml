@@ -1,0 +1,19 @@
+python3 policies/main.py --cfg configs/pomdp/car_flag/rnn.yml --algo sacd --target_entropy 0.7 --seed 0
+python3 policies/main.py --cfg configs/pomdp/car_flag/rnn.yml --algo sacd --target_entropy 0.7 --seed 1
+python3 policies/main.py --cfg configs/pomdp/car_flag/rnn.yml --algo sacd --target_entropy 0.7 --seed 2
+python3 policies/main.py --cfg configs/pomdp/car_flag/rnn.yml --algo sacd --target_entropy 0.7 --seed 3
+
+python3 policies/main.py --cfg configs/pomdp/car_flag/rnn.yml --algo sacde --target_entropy 1.0 --seed 0
+python3 policies/main.py --cfg configs/pomdp/car_flag/rnn.yml --algo sacde --target_entropy 1.0 --seed 1
+python3 policies/main.py --cfg configs/pomdp/car_flag/rnn.yml --algo sacde --target_entropy 1.0 --seed 2
+python3 policies/main.py --cfg configs/pomdp/car_flag/rnn.yml --algo sacde --target_entropy 1.0 --seed 3
+
+python3 policies/main.py --cfg configs/pomdp/lighthouse/rnn.yml --algo sacd --target_entropy 0.7 --seed 0
+python3 policies/main.py --cfg configs/pomdp/lighthouse/rnn.yml --algo sacd --target_entropy 0.7 --seed 1
+python3 policies/main.py --cfg configs/pomdp/lighthouse/rnn.yml --algo sacd --target_entropy 0.7 --seed 2
+python3 policies/main.py --cfg configs/pomdp/lighthouse/rnn.yml --algo sacd --target_entropy 0.7 --seed 3
+
+python3 policies/main.py --cfg configs/pomdp/lighthouse/rnn.yml --algo sacde --target_entropy 1.0 --seed 0
+python3 policies/main.py --cfg configs/pomdp/lighthouse/rnn.yml --algo sacde --target_entropy 1.0 --seed 1
+python3 policies/main.py --cfg configs/pomdp/lighthouse/rnn.yml --algo sacde --target_entropy 1.0 --seed 2
+python3 policies/main.py --cfg configs/pomdp/lighthouse/rnn.yml --algo sacde --target_entropy 1.0 --seed 3
