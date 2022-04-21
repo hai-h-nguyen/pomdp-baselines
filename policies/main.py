@@ -16,7 +16,7 @@ from policies.learner import Learner
 
 FLAGS = flags.FLAGS
 flags.DEFINE_string("cfg", None, "path to configuration file")
-flags.DEFINE_string("algo", None, '["td3", "sac", "sacd", "sacde"]')
+flags.DEFINE_string("algo", None, '["td3", "sac", "sacd", "sacde", "sacda"]')
 flags.DEFINE_string("env", None, 'environment to run')
 
 flags.DEFINE_boolean("automatic_entropy_tuning", None, "for [sac, sacd]")
@@ -85,7 +85,7 @@ else:
 
 arch, algo = v["policy"]["arch"], v["policy"]["algo"]
 assert arch in ["mlp", "lstm", "gru"]
-assert algo in ["td3", "sac", "sacd", "sacde"]
+assert algo in ["td3", "sac", "sacd", "sacde", "sacda"]
 if arch == "mlp":
     if oracle:
         algo_name = f"oracle_{algo}"
@@ -108,7 +108,7 @@ else:  # rnn
         exp_id += "_shared"
 exp_id += "/"
 
-if algo in ["sac", "sacd", "sacde"]:
+if algo in ["sac", "sacd", "sacde", "sacda"]:
     if not v["policy"]["automatic_entropy_tuning"]:
         exp_id += f"alpha-{v['policy']['entropy_alpha']}/"
     elif "target_entropy" in v["policy"]:

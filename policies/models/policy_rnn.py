@@ -35,6 +35,7 @@ class ModelFreeOffPolicy_Separate_RNN(nn.Module):
     SAC_name = Actor_RNN.SAC_name
     SACD_name = Actor_RNN.SACD_name
     SACDE_name = Actor_RNN.SACDE_name
+    SACDA_name = Actor_RNN.SACDA_name
 
     def __init__(
         self,
@@ -70,8 +71,11 @@ class ModelFreeOffPolicy_Separate_RNN(nn.Module):
         self.gamma = gamma
         self.tau = tau
 
-        assert algo in [self.TD3_name, self.SAC_name, self.SACD_name, self.SACDE_name]
+        assert algo in [self.TD3_name, self.SAC_name, self.SACD_name, self.SACDE_name, self.SACDA_name]
         self.algo = algo
+
+        if algo == self.SACDA_name:
+            self.alpha = 20
 
         # Critics
         self.critic = Critic_RNN(
@@ -207,7 +211,7 @@ class ModelFreeOffPolicy_Separate_RNN(nn.Module):
                     prev_actions=actions, observs=observs
                 )
             else:
-                new_probs, new_log_probs = self.actor(
+                new_probs, new_log_probs, _ = self.actor(
                     prev_actions=actions, observs=observs
                 )
 
@@ -228,12 +232,13 @@ class ModelFreeOffPolicy_Separate_RNN(nn.Module):
                     -new_log_probs
                 )  # (T+1, B, 1 or A)
 
-            if self.algo in [self.SACD_name, self.SACDE_name]:
+            if self.algo in [self.SACD_name, self.SACDE_name, self.SACDA_name]:
                 if self.algo in [self.SACDE_name]:
                     min_next_q_target += self.alpha_entropy * (
                         new_log_probs.gather(dim=-1, index=exp_actions.long())
                     )  # (T+1, B, 1 or A)
                 else:
+                    # for SACD and SACDA
                     min_next_q_target += self.alpha_entropy * (
                         -new_log_probs
                     )  # (T+1, B, 1 or A)
@@ -254,7 +259,7 @@ class ModelFreeOffPolicy_Separate_RNN(nn.Module):
             current_actions=actions[1:],
         )  # (T, B, 1 or A)
 
-        if self.algo in [self.SACD_name, self.SACDE_name]:
+        if self.algo in [self.SACD_name, self.SACDE_name, self.SACDA_name]:
             stored_actions = actions[1:]  # (T, B, A)
             stored_actions = torch.argmax(
                 stored_actions, dim=-1, keepdims=True
@@ -288,9 +293,30 @@ class ModelFreeOffPolicy_Separate_RNN(nn.Module):
                 prev_actions=actions, observs=observs
             )  # (T+1, B, A)
         else:
-            new_probs, log_probs = self.actor(
+            new_probs, log_probs, aux_probs = self.actor(
                 prev_actions=actions, observs=observs
             )  # (T+1, B, A)
+
+        if self.algo == self.SACDA_name:
+            main_distr = torch.distributions.Categorical(new_probs[:-1])
+            main_expert_neg_cross_entropy = main_distr.log_prob(exp_actions.long().squeeze(-1)).unsqueeze(-1)
+
+            aux_distr = torch.distributions.Categorical(aux_probs[:-1])
+            distance = -aux_distr.log_prob(exp_actions.long().squeeze(-1)).unsqueeze(-1)
+
+            use_expert_weights = (
+                    torch.exp(-self.alpha * distance)
+                    * masks
+                    .float()
+                ).detach()
+
+            w_main_expert_ce_loss = -(
+                use_expert_weights * main_expert_neg_cross_entropy
+            ).sum() / num_valid
+
+            aux_expert_ce_loss = (distance * masks).sum() / num_valid
+
+            use_rl_weights = 1 - use_expert_weights
 
         q1, q2 = self.critic(
             prev_actions=actions,
@@ -304,32 +330,37 @@ class ModelFreeOffPolicy_Separate_RNN(nn.Module):
         policy_loss = -min_q_new_actions
 
         policy_loss = policy_loss[:-1]
-        if self.algo in [self.SAC_name, self.SACD_name]:  # Q(h(t), pi(h(t))) + H[pi(h(t))]
+        if self.algo in [self.SAC_name, self.SACD_name, self.SACDA_name]:  # Q(h(t), pi(h(t))) + H[pi(h(t))]
             policy_loss += self.alpha_entropy * log_probs[:-1]
 
         elif self.algo in [self.SACDE_name]:
             policy_loss += -self.alpha_entropy * log_probs[:-1].gather(dim=-1, index=exp_actions.long())
 
-        if self.algo in [self.SACD_name, self.SACDE_name]:  # E_{a\sim \pi}[Q(h,a)]
+        if self.algo in [self.SACD_name, self.SACDE_name, self.SACDA_name]:  # E_{a\sim \pi}[Q(h,a)]
             policy_loss = (new_probs[:-1] * policy_loss).sum(
                 axis=-1, keepdims=True
             )  # (T+1,B,1)
 
-          # (T,B,1) remove the last obs
         # masked policy_loss
-        policy_loss = (policy_loss * masks).sum() / num_valid
+        if self.algo in [self.SACDA_name]:
+            policy_loss = (policy_loss * use_rl_weights * masks).sum() / num_valid
+        else:
+            policy_loss = (policy_loss * masks).sum() / num_valid
 
         self.actor_optimizer.zero_grad()
-        policy_loss.backward()
+        if self.algo in [self.SACDA_name]:
+            (policy_loss + w_main_expert_ce_loss + aux_expert_ce_loss).backward()
+        else:
+            policy_loss.backward()
         self.actor_optimizer.step()
 
         ### 3. soft update
         self.soft_target_update()
 
         ### 4. update alpha
-        if self.algo in [self.SAC_name, self.SACD_name, self.SACDE_name]:
+        if self.algo in [self.SAC_name, self.SACD_name, self.SACDE_name, self.SACDA_name]:
             # extract valid log_probs
-            if self.algo in [self.SACD_name]:  # -> negative entropy (T+1, B, 1)
+            if self.algo in [self.SACD_name, self.SACDA_name]:  # -> negative entropy (T+1, B, 1)
                 log_probs = (new_probs[:-1] * log_probs[:-1]).sum(axis=-1, keepdims=True)
 
             if self.algo in [self.SACDE_name]:  # -> negative entropy (T+1, B, 1)
@@ -361,10 +392,14 @@ class ModelFreeOffPolicy_Separate_RNN(nn.Module):
             "policy_loss": policy_loss.item()
         }
 
-        if self.algo in [self.SAC_name, self.SACD_name, self.SACDE_name]:
+        if self.algo in [self.SAC_name, self.SACD_name, self.SACDE_name, self.SACDA_name]:
             outputs.update(
                 {"policy_entropy": -current_log_probs, "alpha": self.alpha_entropy}
             )
+
+        if self.algo in [self.SACDA_name]:
+            outputs.update({"aux_expert_ce_loss": aux_expert_ce_loss.item(),
+                            "w_main_expert_ce_loss": w_main_expert_ce_loss.item()})
 
         return outputs
 
@@ -386,7 +421,7 @@ class ModelFreeOffPolicy_Separate_RNN(nn.Module):
         # all are 3D tensor (T,B,dim)
         actions, rewards, dones, states = batch["act"], batch["rew"], batch["term"], batch["state"]
         _, batch_size, _ = actions.shape
-        if self.algo in [self.SACD_name, self.SACDE_name]:
+        if self.algo in [self.SACD_name, self.SACDE_name, self.SACDA_name]:
             # for discrete action space, convert to one-hot vectors
             actions = F.one_hot(
                 actions.squeeze(-1).long(), num_classes=self.action_dim
